@@ -15,12 +15,11 @@ from gimpfu import *
 from array import array
 
 def to_bytes(n, length, endianness='big'):
-    if(sys.version_info[0] < 3):
-        h = '%x' % n
-        s = ('0'*(len(h) % 2) + h).zfill(length*2).decode('hex')
-        return s if endianness == 'big' else s[::-1]
-    else:
+    if sys.version_info[0] >= 3:
         return n.to_bytes(length, byteorder=endianness)
+    h = '%x' % n
+    s = ('0'*(len(h) % 2) + h).zfill(length*2).decode('hex')
+    return s if endianness == 'big' else s[::-1]
 
 def mr_encode(input, output, size):
     length = 0
@@ -76,7 +75,7 @@ def save_mr(img, drawable, filename, raw_filename):
     src_pixels = array("B", src_rgn[0:src_width, 0:src_height])
 
     # Allocate raw and compressed outputs
-    raw_output = array("B", "\x00" * (src_width * src_height )) 
+    raw_output = array("B", "\x00" * (src_width * src_height ))
     compressed_output = array("B", "\x00" * (src_width * src_height))
 
     psize = len(src_rgn[0,0]) # Should be 3
@@ -95,15 +94,14 @@ def save_mr(img, drawable, filename, raw_filename):
             else:
                 palette_index += 1
 
-        # Display error message if image has more than 128 colors
-        if(not found and palette_index == 128):
-            gimp.message("Reduce the number of colors to <= 128 and try again.\n")
-            return
-        
-        if(not found):
+        if (not found):
+            if palette_index == 128:
+                gimp.message("Reduce the number of colors to <= 128 and try again.\n")
+                return
+
             palette_colors[palette_index*3:palette_index*3+psize] = src_pixels[pixel_index:pixel_index+psize]
             palette_count += 1
-        
+
         raw_output[i] = palette_index
 
     compressed_size = mr_encode(raw_output, compressed_output, src_width*src_height)
@@ -111,7 +109,7 @@ def save_mr(img, drawable, filename, raw_filename):
     # Display warning if compressed image is bigger than 8192 bytes
     if(compressed_size > 8192):
         gimp.message("WARNING: This will NOT fit in a normal ip.bin - it is %d bytes too big!\n", compressed_size - 8192)
-    
+
     crap = 0
     endianness = 'little'
     offset = 30 + palette_count*4 # 30 byte header
